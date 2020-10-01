@@ -1,14 +1,17 @@
 package main
 
 import (
+	"context"
 	"fmt"
-	mailgun "github.com/mailgun/mailgun-go"
 	"log"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
+
+	mailgun "github.com/mailgun/mailgun-go"
 )
 
 type Config struct {
@@ -28,6 +31,7 @@ func main() {
 			log.Fatal("unknown argument: " + command)
 		}
 	} else {
+		log.Print("Logging in Go!")
 		RunApplication()
 	}
 }
@@ -37,7 +41,7 @@ func RunApplication() {
 
 	PrintConfig(config)
 
-	mg := mailgun.NewMailgun(config.Domain, config.ApiKey, "")
+	mg := mailgun.NewMailgun(config.Domain, config.ApiKey)
 
 	StartHttpServer(mg, config)
 }
@@ -86,6 +90,7 @@ func PrintConfig(config Config) {
 }
 
 func StartHttpServer(mg mailgun.Mailgun, config Config) {
+
 	http.HandleFunc("/subscribe", func(response http.ResponseWriter, request *http.Request) {
 		email := request.FormValue("email")
 
@@ -93,8 +98,9 @@ func StartHttpServer(mg mailgun.Mailgun, config Config) {
 			Address:    email,
 			Subscribed: mailgun.Subscribed,
 		}
-
-		mg.CreateMember(true, config.MailingListAddress, newMember)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*100000)
+		defer cancel()
+		mg.CreateMember(ctx, true, config.MailingListAddress, newMember)
 
 		fmt.Println(email + " has been subscribed to the mailing list")
 
@@ -106,6 +112,7 @@ func StartHttpServer(mg mailgun.Mailgun, config Config) {
 	})
 
 	http.ListenAndServe(":"+strconv.Itoa(config.HttpPort), nil)
+
 }
 
 func PrintHelp() {
